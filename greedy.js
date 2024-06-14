@@ -37,10 +37,8 @@ const datav = [
     { id: 2695, x: 50.6061517, y: 5.7830075, demand: 32, name: "XHENDELESSE" }
 ];
 
-data = datav.slice(0,7)
 
-// Additional information from the file
-const metadata = {
+const metadata = {  
     name: "belgium-n50-k10",
     comment: "Generated for OptaPlanner Examples with GraphHopper by Geoffrey De Smet.",
     type: "CVRP",
@@ -49,6 +47,9 @@ const metadata = {
     capacity: 125,
     depot: { id: 0, x: 50.8427501, y: 4.3515499, demand: 0, name: "BRUSSEL" }
 };
+
+data = datav.slice(0,50)
+
 
 // Set up SVG dimensions
 const width = 800;
@@ -95,7 +96,14 @@ const labels = g.selectAll("text")
     .attr("font-size", "12px")
 
 
-
+let t0 = performance.now();
+function calculateRouteCost(route) {
+    let cost = 0;
+    for (let i = 0; i < route.length - 1; i++) {
+        cost += distance(route[i], route[i + 1]);
+    }
+    return cost;
+}
 function distance(node1, node2) {
     const dx = xScale(node2.x) - xScale(node1.x);
     const dy = yScale(node2.y) - yScale(node1.y);
@@ -117,67 +125,48 @@ function findNearest(node, unvisited) {
 
     return nearest;
 }
-let t0 = performance.now();
- // Greedy routing
-let unvisited = data.slice(1);  // Exclude the depot
-let current = data[0];  // Start from the depot
-let maxCapacity = metadata.capacity;
-let K = 10;  // Number of vehicles
-let k = Array.from({length: K}, (_, i) => ({id: i, capacity: 0}));  // Initialize vehicles
-let routes = Array.from({length: K}, () => [data[0]]);
-let i = 0;  // Current vehicle index
-
-
-while (unvisited.length > 0 && i < K) {
-    const nearest = findNearest(current, unvisited);
-    if (k[i].capacity + nearest.demand <= maxCapacity) {
-        k[i].capacity += nearest.demand;
-        routes[i].push(nearest);
-        unvisited = unvisited.filter(node => node !== nearest);
-        current = nearest;
-    } else {
-        routes[i].push(data[0]);  // Return to the depot
-        i++;  // Move to the next vehicle
-        current = data[0];  // Start from the depot
-        k[i] = {id: i, capacity: 0};  // Initialize the next vehicle
-    }
-}
-
-// If there are still unvisited nodes, assign them to the last vehicle
-while (unvisited.length > 0) {
-    const nearest = findNearest(current, unvisited);
-    routes[K - 1].push(nearest);
-    unvisited = unvisited.filter(node => node !== nearest);
-    current = nearest;
-}
-
-// Make sure all routes end at the depot
-routes.forEach(route => {
-    if (route[route.length - 1].id !== 0) {
-        route.push(data[0]);
-    }
-});
-
-function calculateRouteCost(route) {
-    let cost = 0;
-    for (let i = 0; i < route.length - 1; i++) {
-        cost += distance(route[i], route[i + 1]);
-    }
-    return cost;
-}
 
 function calculateTotalCost(routes) {
     return routes.reduce((acc, route) => acc + calculateRouteCost(route), 0);
 }
-for (let i = 0; i < routes.length; i++) {
-    routes[i].push(data[0]);
-    console.log(calculateRouteCost(routes[i]));
+
+
+function Greedy(data, K) {
+    let unvisited = data.slice(1);  
+    let current = data[0];  
+    let maxCapacity = metadata.capacity;
+    K = 10;  
+    let k = Array.from({length: K}, (_, i) => ({id: i, capacity: 0}));  
+    let routes = Array.from({length: K}, () => [data[0]]);
+    let i = 0;  
+    while (unvisited.length > 0 && i < K) {
+        const nearest = findNearest(current, unvisited);
+        if (k[i].capacity + nearest.demand <= maxCapacity) {
+            k[i].capacity += nearest.demand;
+            routes[i].push(nearest);
+            unvisited = unvisited.filter(node => node !== nearest);
+            current = nearest;
+        } else {
+            routes[i].push(data[0]);  // Return to the depot
+            i++;  // Move to the next vehicle
+            current = data[0];  // Start from the depot
+            k[i] = {id: i, capacity: 0};  // Initialize the next vehicle
+        }
+    }
+
+    routes.forEach(route => {
+        if (route[route.length - 1].id !== 0) {
+            route.push(data[0]);
+        }
+    });
+    return routes;
+
 }
 
 
-console.log(routes);
+const routes = Greedy(data, 10);
 let t1 = performance.now();
-console.log("Call to doSomething took " + (t1 - t0) + " milliseconds.");
+console.log("Greedy took " + (t1 - t0) + " milliseconds.");
 
 function flattenRoutes(routes) {
     let segments = [];
@@ -239,13 +228,11 @@ function startAnimation() {
 // Function to reset the animation
 function resetAnimation() {
     routePaths
-        .interrupt()  // Stop any ongoing transitions
+        .interrupt()  
         .attr("d", d => lineGenerator([d.source, d.source]))
         .attr("opacity", 0);
     
 }
-
-// Call updateTotalCostBox() whenever you want to update the total cost box
 
 
 d3.select("body")
